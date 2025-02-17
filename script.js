@@ -1,114 +1,87 @@
-function initMap() {
-    const map = new google.maps.Map(document.getElementById("map"), {
-        mapTypeControl: false,
-        center: { lat: -33.8688, lng: 151.2195 },
-        zoom: 13,
-    });
+let map;
+let marker;
+let geocoder;
+let responseDiv;
+let response;
 
-    new AutocompleteDirectionsHandler(map);
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 8,
+    center: { lat: -34.397, lng: 150.644 },
+    mapTypeControl: false,
+  });
+  geocoder = new google.maps.Geocoder();
+
+  const inputText = document.createElement("input");
+
+  inputText.type = "text";
+  inputText.placeholder = "Enter a location";
+
+  const submitButton = document.createElement("input");
+
+  submitButton.type = "button";
+  submitButton.value = "Geocode";
+  submitButton.classList.add("button", "button-primary");
+
+  const clearButton = document.createElement("input");
+
+  clearButton.type = "button";
+  clearButton.value = "Clear";
+  clearButton.classList.add("button", "button-secondary");
+  response = document.createElement("pre");
+  response.id = "response";
+  response.innerText = "";
+  responseDiv = document.createElement("div");
+  responseDiv.id = "response-container";
+  responseDiv.appendChild(response);
+
+  const instructionsElement = document.createElement("p");
+
+  instructionsElement.id = "instructions";
+  instructionsElement.innerHTML =
+    "<strong>Instructions</strong>: Enter an address in the textbox to geocode or click on the map to reverse geocode.";
+  map.controls[google.maps.ControlPosition.TOP_LEFT].push(inputText);
+  map.controls[google.maps.ControlPosition.TOP_LEFT].push(submitButton);
+  map.controls[google.maps.ControlPosition.TOP_LEFT].push(clearButton);
+  map.controls[google.maps.ControlPosition.LEFT_TOP].push(instructionsElement);
+  map.controls[google.maps.ControlPosition.LEFT_TOP].push(responseDiv);
+  marker = new google.maps.Marker({
+    map,
+  });
+  map.addListener("click", (e) => {
+    geocode({ location: e.latLng });
+  });
+  submitButton.addEventListener("click", () =>
+    geocode({ address: inputText.value }),
+  );
+  clearButton.addEventListener("click", () => {
+    clear();
+  });
+  clear();
 }
 
-class AutocompleteDirectionsHandler {
-    map;
-    originPlaceId;
-    destinationPlaceId;
-    travelMode;
-    directionsService;
-    directionsRenderer;
-    constructor(map) {
-        this.map = map;
-        this.originPlaceId = "";
-        this.destinationPlaceId = "";
-        this.travelMode = google.maps.TravelMode.WALKING;
-        this.directionsService = new google.maps.DirectionsService();
-        this.directionsRenderer = new google.maps.DirectionsRenderer();
-        this.directionsRenderer.setMap(map);
+function clear() {
+  marker.setMap(null);
+  responseDiv.style.display = "none";
+}
 
-        const originInput = document.getElementById("origin-input");
-        const destinationInput = document.getElementById("destination-input");
-        const modeSelector = document.getElementById("mode-selector");
-        // Specify just the place data fields that you need.
-        const originAutocomplete = new google.maps.places.Autocomplete(
-            originInput,
-            { fields: ["place_id"] },
-        );
-        // Specify just the place data fields that you need.
-        const destinationAutocomplete = new google.maps.places.Autocomplete(
-            destinationInput,
-            { fields: ["place_id"] },
-        );
+function geocode(request) {
+  clear();
+  geocoder
+    .geocode(request)
+    .then((result) => {
+      const { results } = result;
 
-        this.setupClickListener(
-            "changemode-walking",
-            google.maps.TravelMode.WALKING,
-        );
-        this.setupClickListener(
-            "changemode-transit",
-            google.maps.TravelMode.TRANSIT,
-        );
-        this.setupClickListener(
-            "changemode-driving",
-            google.maps.TravelMode.DRIVING,
-        );
-        this.setupPlaceChangedListener(originAutocomplete, "ORIG");
-        this.setupPlaceChangedListener(destinationAutocomplete, "DEST");
-        this.map.controls[google.maps.ControlPosition.TOP_LEFT].push(originInput);
-        this.map.controls[google.maps.ControlPosition.TOP_LEFT].push(
-            destinationInput,
-        );
-        this.map.controls[google.maps.ControlPosition.TOP_LEFT].push(modeSelector);
-    }
-    // Sets a listener on a radio button to change the filter type on Places
-    // Autocomplete.
-    setupClickListener(id, mode) {
-        const radioButton = document.getElementById(id);
-
-        radioButton.addEventListener("click", () => {
-            this.travelMode = mode;
-            this.route();
-        });
-    }
-    setupPlaceChangedListener(autocomplete, mode) {
-        autocomplete.bindTo("bounds", this.map);
-        autocomplete.addListener("place_changed", () => {
-            const place = autocomplete.getPlace();
-
-            if (!place.place_id) {
-                window.alert("Please select an option from the dropdown list.");
-                return;
-            }
-
-            if (mode === "ORIG") {
-                this.originPlaceId = place.place_id;
-            } else {
-                this.destinationPlaceId = place.place_id;
-            }
-
-            this.route();
-        });
-    }
-    route() {
-        if (!this.originPlaceId || !this.destinationPlaceId) {
-            return;
-        }
-
-        const me = this;
-
-        this.directionsService.route(
-            {
-                origin: { placeId: this.originPlaceId },
-                destination: { placeId: this.destinationPlaceId },
-                travelMode: this.travelMode,
-            },
-            (response, status) => {
-                if (status === "OK") {
-                    me.directionsRenderer.setDirections(response);
-                } else {
-                    window.alert("Directions request failed due to " + status);
-                }
-            },
-        );
-    }
+      map.setCenter(results[0].geometry.location);
+      marker.setPosition(results[0].geometry.location);
+      marker.setMap(map);
+      responseDiv.style.display = "block";
+      response.innerText = JSON.stringify(result, null, 2);
+      return results;
+    })
+    .catch((e) => {
+      alert("Geocode was not successful for the following reason: " + e);
+    });
 }
 
 window.initMap = initMap;
